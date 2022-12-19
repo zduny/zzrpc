@@ -123,18 +123,19 @@ pub fn produce(input: TokenStream) -> TokenStream {
                     SendErrorCallback,
                     ReceiveErrorCallback,
                 >,
-            ) -> zzrpc::JoinHandle<ShutdownType> where
+            ) -> zzrpc::JoinHandle<zzrpc::ShutdownType> where
                 Transport: mezzenger::Transport<
-                        consumer::Message<Self::Request>,
-                        zzrpc::Message<Self::Response>,
+                        zzrpc::consumer::Message<Self::Request>,
+                        zzrpc::producer::Message<Self::Response>,
                         Error,
                     > + mezzenger::Reliable
                     + mezzenger::Order
                     + Send
                     + 'static,
-                Shutdown: futures::Future<Output = ShutdownType> + Send + 'static,
+                Shutdown: futures::Future<Output = zzrpc::ShutdownType> + Send + 'static,
                 SendErrorCallback: zzrpc::SendErrorCallback<Error> + Send + 'static,
                 ReceiveErrorCallback: zzrpc::ReceiveErrorCallback<Error> + Send + 'static {
+                use zzrpc::spawn;
                 impl_produce!(self, transport, configuration)
             }
         
@@ -148,17 +149,18 @@ pub fn produce(input: TokenStream) -> TokenStream {
                     SendErrorCallback,
                     ReceiveErrorCallback,
                 >,
-            ) -> zzrpc::JoinHandle<ShutdownType> where
+            ) -> zzrpc::JoinHandle<zzrpc::ShutdownType> where
                 Transport: mezzenger::Transport<
-                        consumer::Message<Self::Request>,
-                        Message<Self::Response>,
+                        zzrpc::consumer::Message<Self::Request>,
+                        zzrpc::producer::Message<Self::Response>,
                         Error,
                     > + mezzenger::Reliable
                     + mezzenger::Order
                     + 'static,
-                Shutdown: futures::Future<Output = ShutdownType> + 'static,
+                Shutdown: futures::Future<Output = zzrpc::ShutdownType> + 'static,
                 SendErrorCallback: zzrpc::SendErrorCallback<Error> + 'static,
                 ReceiveErrorCallback: zzrpc::ReceiveErrorCallback<Error> + 'static {
+                use zzrpc::spawn;
                 impl_produce!(self, transport, configuration)
             }
         }
