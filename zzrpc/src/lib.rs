@@ -27,6 +27,8 @@ pub use js_utils::spawn::spawn;
 #[cfg(target_arch = "wasm32")]
 pub type JoinHandle<T> = js_utils::spawn::JoinHandle<T>;
 
+pub use zzrpc_derive::Produce;
+
 pub mod consumer;
 pub mod producer;
 

@@ -484,7 +484,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zzrcp"
+name = "zzrpc"
 version = "0.1.0"
 dependencies = [
  "futures",
@@ -494,8 +494,14 @@ dependencies = [
  "serde",
  "tokio",
  "zduny-wasm-timer",
+ "zzrpc-derive",
 ]
 
 [[package]]
-name = "zzrcp-derive"
+name = "zzrpc-derive"
 version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
