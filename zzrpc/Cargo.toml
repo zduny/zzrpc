@@ -14,7 +14,7 @@ serde = { version = "1.0.150", features = ["derive"] }
 mezzenger = "0.1.2"
 futures = "0.3.25"
 pin-project = "1.0.12"
-zzrpc-derive = { path = "../zzrpc-derive" }
+zzrpc-derive = "0.1.0"
 atomic-counter = "1.0.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
