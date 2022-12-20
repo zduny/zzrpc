@@ -14,4 +14,4 @@ To do.
 
 [mezzenger](https://github.com/zduny/mezzenger)
 
-[Remote procedure call](https://en.wikipedia.org/wiki/Remote_procedure_call)
+[remote procedure call](https://en.wikipedia.org/wiki/Remote_procedure_call)
