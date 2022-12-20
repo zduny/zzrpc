@@ -1,11 +1,18 @@
 /// Return value for value requests.
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll},
+};
 
-use std::{sync::{Arc, Mutex}, pin::Pin, task::{Context, Poll}};
-
-use futures::{channel::{mpsc::UnboundedSender, oneshot}, Future, future::FusedFuture, ready, FutureExt};
+use futures::{
+    channel::{mpsc::UnboundedSender, oneshot},
+    future::FusedFuture,
+    ready, Future, FutureExt,
+};
 use pin_project::{pin_project, pinned_drop};
 
-use super::{Message, ResultSender, Aborter, Payload};
+use super::{Aborter, Message, Payload, ResultSender};
 
 /// Future returned by consumer value requests.
 #[derive(Debug)]
@@ -22,7 +29,7 @@ pub struct ValueRequest<T, Request, Error> {
 
 impl<T, Request, Error> ValueRequest<T, Request, Error> {
     /// Create new value request.
-    /// 
+    ///
     /// **NOTE**: This is used internally by the generated consumers.<br>
     /// You should never have to create it manually yourself.
     #[allow(clippy::type_complexity)]
@@ -83,17 +90,15 @@ impl<T, Request, Error> Future for ValueRequest<T, Request, Error> {
                 id: *me.id,
                 payload: Payload::Request(request),
             };
-            me.sender
-                .unbounded_send((message, sender))
-                .map_err(|_| { 
-                    me.receiver.take();
-                    super::super::Error::Shutdown }
-                )?;
+            me.sender.unbounded_send((message, sender)).map_err(|_| {
+                me.receiver.take();
+                super::super::Error::Shutdown
+            })?;
             match receiver.poll_unpin(cx) {
                 Poll::Ready(result) => {
                     me.receiver.take();
                     Poll::Ready(result.map_err(|_| super::super::Error::Dropped)?)
-                },
+                }
                 Poll::Pending => {
                     *me.receiver = Some(receiver);
                     Poll::Pending

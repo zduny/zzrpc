@@ -1,5 +1,4 @@
 /// RPC over [mezzenger](https://github.com/zduny/mezzenger) transports.
-
 use std::{
     fmt::{Debug, Display},
     pin::Pin,
@@ -9,25 +8,30 @@ use std::{
 
 use futures::{future::FusedFuture, ready, Future, FutureExt};
 
+pub use atomic_counter;
+pub use futures;
+pub use serde;
+
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(not(target_arch = "wasm32"))]
-use tokio::time::{sleep, Sleep};
-#[cfg(not(target_arch = "wasm32"))]
 pub use tokio::spawn;
+#[cfg(not(target_arch = "wasm32"))]
+use tokio::time::{sleep, Sleep};
 #[cfg(not(target_arch = "wasm32"))]
 pub type JoinHandle<T> = tokio::task::JoinHandle<T>;
 
+#[cfg(target_arch = "wasm32")]
+pub use js_utils::spawn::spawn;
 #[cfg(target_arch = "wasm32")]
 use js_utils::{sleep, sleep::Sleep};
 #[cfg(target_arch = "wasm32")]
 use zduny_wasm_timer::Instant;
 #[cfg(target_arch = "wasm32")]
-pub use js_utils::spawn::spawn;
-#[cfg(target_arch = "wasm32")]
 pub type JoinHandle<T> = js_utils::spawn::JoinHandle<T>;
 
-pub use zzrpc_derive::Produce;
+pub use crate::consumer::{StreamRequest, ValueRequest, Consume};
+pub use zzrpc_derive::{api, Produce};
 
 pub mod consumer;
 pub mod producer;
@@ -164,7 +168,7 @@ where
 }
 
 /// Default [SendErrorCallback].
-/// 
+///
 /// It shutdowns producer on [mezzenger::Error::Closed] error with [ShutdownType::Closed]. <br>
 /// It ignores all other types of errors.
 #[derive(Debug)]
@@ -184,7 +188,7 @@ impl<Error> SendErrorCallback<Error> for DefaultSendErrorCallback {
 }
 
 /// Default [ReceiveErrorCallback].
-/// 
+///
 /// It ignores errors.
 #[derive(Debug)]
 pub struct DefaultReceiveErrorCallback {}
@@ -196,7 +200,7 @@ impl<Error> ReceiveErrorCallback<Error> for DefaultReceiveErrorCallback {
 }
 
 /// Timeout future.
-/// 
+///
 /// It is used internally by producers/consumers.<br>
 /// You should never have to construct it yourself.
 #[derive(Debug)]
@@ -208,9 +212,6 @@ pub enum Timeout {
 
         /// Sleep future.
         sleep: Pin<Box<Sleep>>,
-
-        /// Is timeout future terminated.
-        terminated: bool,
     },
 
     /// Timeout that never occurs.
@@ -223,7 +224,6 @@ impl Timeout {
         Timeout::Duration {
             duration,
             sleep: Box::pin(sleep(duration)),
-            terminated: false,
         }
     }
 
@@ -234,10 +234,7 @@ impl Timeout {
 
     /// Reset timeout (with duration it was created with).
     pub fn reset(&mut self) {
-        if let Timeout::Duration {
-            duration, sleep, ..
-        } = self
-        {
+        if let Timeout::Duration { duration, sleep } = self {
             let deadline = Instant::now() + *duration;
             sleep.as_mut().reset(deadline.into())
         }
@@ -249,11 +246,8 @@ impl Future for Timeout {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match &mut *self {
-            Timeout::Duration {
-                sleep, terminated, ..
-            } => {
+            Timeout::Duration { sleep, .. } => {
                 ready!(sleep.poll_unpin(cx));
-                *terminated = true;
                 Poll::Ready(())
             }
             Timeout::Never => Poll::Pending,
@@ -264,8 +258,8 @@ impl Future for Timeout {
 impl FusedFuture for Timeout {
     fn is_terminated(&self) -> bool {
         match self {
-            Timeout::Duration { terminated, .. } => *terminated,
-            Timeout::Never => false,
+            Timeout::Duration { .. } => false,
+            Timeout::Never => true,
         }
     }
 }

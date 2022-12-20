@@ -1,5 +1,4 @@
 /// Consumer related functionality.
-
 mod value;
 use std::{
     marker::PhantomData,
@@ -46,7 +45,7 @@ pub enum Payload<Request> {
 pub type Result<T, Error> = std::result::Result<T, super::Error<Error>>;
 
 /// Configuration for [consume] method.
-/// 
+///
 /// [consume]: self::Consume::consume
 #[derive(Debug)]
 pub struct Configuration<Shutdown, Error, ReceiveErrorCallback>
@@ -72,7 +71,7 @@ impl<Error> Default for Configuration<Pending<ShutdownType>, Error, DefaultRecei
 }
 
 /// Used internally by derived consumer implementations to pass values around.
-/// 
+///
 /// You should never have to create it manually yourself.
 #[derive(Debug)]
 pub enum ResultSender<T, Error> {
@@ -95,8 +94,8 @@ pub struct Aborter<T, Request, Error> {
 
 impl<Request, Output, Error> Aborter<Request, Output, Error> {
     /// Abort value request/stream request/stream.
-    /// 
-    /// **NOTE** regarding streams: Values that were already received from the producer 
+    ///
+    /// **NOTE** regarding streams: Values that were already received from the producer
     /// before abort has been completed will still be returned by the stream.
     pub fn abort(self) {
         let mut abort_sender = self.abort_sender.lock().unwrap();
@@ -128,20 +127,20 @@ impl<Request, Output, Error> Clone for Aborter<Request, Output, Error> {
 }
 
 /// Trait implemented by consumers.
-/// 
-/// You should never have to implement it manually - use derive macros. 
-pub trait Consume<Consumer> {
+///
+/// You should never have to implement it manually - use macros.
+pub trait Consume<Consumer, Error> {
     type Request;
     type Response;
 
     /// Create consumer using given transport and configuration.
-    /// 
+    ///
     /// **NOTE**: It simply calls [Consume::consume_unreliable], but has different constraints.<br>
     /// Separation is done to ensure user is aware that using unreliable transport will result
-    /// in unreliable consumer - consumer methods may never resolve as producer/consumer messages 
+    /// in unreliable consumer - consumer methods may never resolve as producer/consumer messages
     /// may be lost in transport.
     #[cfg(not(target_arch = "wasm32"))]
-    fn consume<Transport, Error, Shutdown, ReceiveErrorCallback>(
+    fn consume<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
     ) -> Consumer
@@ -153,16 +152,17 @@ pub trait Consume<Consumer> {
             + 'static,
         Shutdown: Future<Output = ShutdownType> + Send + 'static,
         ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + Send + 'static,
+        Error: Send + 'static,
     {
         Self::consume_unreliable(transport, configuration)
     }
 
     /// Create consumer using given transport and configuration.
-    /// 
+    ///
     /// **NOTE**: If unreliable transport is used, consumer will inherit its unreliability -
     /// consumer methods may never resolve due to messages being lost in transport.
     #[cfg(not(target_arch = "wasm32"))]
-    fn consume_unreliable<Transport, Error, Shutdown, ReceiveErrorCallback>(
+    fn consume_unreliable<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
     ) -> Consumer
@@ -173,16 +173,17 @@ pub trait Consume<Consumer> {
             + Send
             + 'static,
         Shutdown: Future<Output = ShutdownType> + Send + 'static,
-        ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + Send + 'static;
+        ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + Send + 'static,
+        Error: Send + 'static;
 
     /// Create consumer using given transport and configuration.
-    /// 
+    ///
     /// **NOTE**: It simply calls [Consume::consume_unreliable], but has different constraints.<br>
     /// Separation is done to ensure user is aware that using unreliable transport will result
-    /// in unreliable consumer - consumer methods may never resolve as producer/consumer messages 
+    /// in unreliable consumer - consumer methods may never resolve as producer/consumer messages
     /// may be lost in transport.
     #[cfg(target_arch = "wasm32")]
-    fn consume<Transport, Error, Shutdown, ReceiveErrorCallback>(
+    fn consume<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
     ) -> Self::Consumer
@@ -193,16 +194,17 @@ pub trait Consume<Consumer> {
             + 'static,
         Shutdown: Future<Output = ShutdownType> + 'static,
         ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + 'static,
+        Error: 'static,
     {
         Self::consume_unreliable(transport, configuration)
     }
 
     /// Create consumer using given transport and configuration.
-    /// 
+    ///
     /// **NOTE**: If unreliable transport is used, consumer will inherit its unreliability -
     /// consumer methods may never resolve due to messages being lost in transport.
     #[cfg(target_arch = "wasm32")]
-    fn consume_unreliable<Transport, Error, Shutdown, ReceiveErrorCallback>(
+    fn consume_unreliable<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
     ) -> Self::Consumer
@@ -212,5 +214,6 @@ pub trait Consume<Consumer> {
             + mezzenger::Order
             + 'static,
         Shutdown: Future<Output = ShutdownType> + 'static,
-        ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + 'static;
+        ReceiveErrorCallback: crate::ReceiveErrorCallback<Error> + 'static,
+        Error: 'static;
 }

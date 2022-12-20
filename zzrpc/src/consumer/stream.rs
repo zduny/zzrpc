@@ -1,11 +1,23 @@
 /// Return value for streaming requests.
+use std::{
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll},
+};
 
-use std::{sync::{Arc, Mutex}, pin::Pin, task::{Context, Poll}};
-
-use futures::{channel::{mpsc::{UnboundedSender, UnboundedReceiver, unbounded}, oneshot}, Future, future::FusedFuture, ready, FutureExt, StreamExt, stream::FusedStream};
+use futures::{
+    channel::{
+        mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
+        oneshot,
+    },
+    future::FusedFuture,
+    ready,
+    stream::FusedStream,
+    Future, FutureExt, StreamExt,
+};
 use pin_project::{pin_project, pinned_drop};
 
-use super::{Message, ResultSender, Aborter, Payload};
+use super::{Aborter, Message, Payload, ResultSender};
 
 /// Future returned by consumer streaming requests.
 #[derive(Debug)]
@@ -23,7 +35,7 @@ pub struct StreamRequest<T, Request, Error> {
 
 impl<T, Request, Error> StreamRequest<T, Request, Error> {
     /// Create new stream request.
-    /// 
+    ///
     /// **NOTE**: This is used internally by the generated consumers.<br>
     /// You should never have to create it manually yourself.
     #[allow(clippy::type_complexity)]
@@ -49,7 +61,7 @@ impl<T, Request, Error> StreamRequest<T, Request, Error> {
     }
 
     /// Aborter for this stream request.
-    /// 
+    ///
     /// **NOTE**: This aborter has ability to abort resulting stream as well.
     pub fn aborter(&mut self) -> Aborter<T, Request, Error> {
         let aborter = self.aborter.get_or_insert_with(|| {
@@ -85,32 +97,33 @@ impl<T, Request, Error> Future for StreamRequest<T, Request, Error> {
             let (result_sender, mut result_receiver) = oneshot::channel();
             let (values_sender, values_receiver) = unbounded();
 
-            let sender = ResultSender::Stream { result_sender, values_sender };
+            let sender = ResultSender::Stream {
+                result_sender,
+                values_sender,
+            };
             let message = Message {
                 id: *me.id,
                 payload: Payload::Request(request),
             };
-            me.sender
-                .unbounded_send((message, sender))
-                .map_err(|_| {
-                    me.result_receiver.take();
-                    super::super::Error::Shutdown 
-                })?;
+            me.sender.unbounded_send((message, sender)).map_err(|_| {
+                me.result_receiver.take();
+                super::super::Error::Shutdown
+            })?;
             match result_receiver.poll_unpin(cx) {
                 Poll::Ready(result) => {
                     me.result_receiver.take();
-                    let result = result.map(|_| {
-                        Stream {
+                    let result = result
+                        .map(|_| Stream {
                             id: *me.id,
                             sender: me.sender.clone(),
                             receiver: Some(values_receiver),
                             aborter: me.aborter.take(),
                             abort_receiver: me.abort_receiver.take(),
-                        }
-                    }).map_err(|_| {
-                        me.values_receiver.take();
-                        super::super::Error::Dropped
-                    });
+                        })
+                        .map_err(|_| {
+                            me.values_receiver.take();
+                            super::super::Error::Dropped
+                        });
                     Poll::Ready(result)
                 }
                 Poll::Pending => {
@@ -122,18 +135,18 @@ impl<T, Request, Error> Future for StreamRequest<T, Request, Error> {
         } else if let Some(receiver) = &mut me.result_receiver {
             let result = ready!(receiver.poll_unpin(cx));
             me.result_receiver.take();
-            let result = result.map(|_| {
-                Stream {
+            let result = result
+                .map(|_| Stream {
                     id: *me.id,
                     sender: me.sender.clone(),
                     receiver: me.values_receiver.take(),
                     aborter: me.aborter.take(),
                     abort_receiver: me.abort_receiver.take(),
-                }
-            }).map_err(|_| {
-                me.values_receiver.take();
-                super::super::Error::Dropped
-            });
+                })
+                .map_err(|_| {
+                    me.values_receiver.take();
+                    super::super::Error::Dropped
+                });
             Poll::Ready(result)
         } else {
             Poll::Pending
@@ -201,18 +214,18 @@ impl<T, Request, Error> futures::Stream for Stream<T, Request, Error> {
                         self.receiver.take();
                         Poll::Ready(None)
                     }
-                },
+                }
                 Poll::Pending => {
                     if let Some(abort_receiver) = &mut self.abort_receiver {
                         if let Poll::Ready(result) = abort_receiver.poll_unpin(cx) {
                             if result.is_ok() {
                                 self.receiver.take();
                                 return Poll::Ready(None);
-                            } 
+                            }
                         }
                     }
                     Poll::Pending
-                },
+                }
             }
         } else {
             Poll::Ready(None)
