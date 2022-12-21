@@ -32,9 +32,9 @@ Add [`zzrpc`](https://crates.io/crates/zzrpc) to `Cargo.toml`:
 zzrpc = "0.1.1"
 ```
 
-For your server/clients you'll also need [mezzenger](https://crates.io/crates/mezzenger), 
-some [kodec](https://crates.io/crates/kodec) and on native server/client 
-[tokio](https://crates.io/crates/tokio).
+For your server/clients you'll also need [`mezzenger`](https://crates.io/crates/mezzenger), 
+some [`kodec`](https://crates.io/crates/kodec) and on native server/client 
+[`tokio`](https://crates.io/crates/tokio).
 
 Most likely (if you want to use complex types - your own defined structs and enums - as arguments 
 and/or return values) you'll also need [`serde`](https://crates.io/crates/serde) 
