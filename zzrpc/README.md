@@ -8,7 +8,7 @@ https://crates.io/crates/zzrpc
 
 # usage
 
-## Step 0 (optional) - common crate
+## Step 0 (optional) - `common` crate
 
 Create separate `common` crate for definition of your api.
 
