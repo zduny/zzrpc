@@ -44,7 +44,7 @@ zzrpc = "0.1.1"
 serde = { version = "1.0.150", features = ["derive"] }
 ```
 
-You'll also need [mezzenger](https://crates.io/crates/mezzenger) and on
+You'll also need [mezzenger](https://crates.io/crates/mezzenger) and on native
 server/client [tokio](https://crates.io/crates/tokio):
 
 ```toml
