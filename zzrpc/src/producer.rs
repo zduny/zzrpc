@@ -1,4 +1,5 @@
-/// Producer related functionality.
+//! Producer related functionality.
+
 use std::{marker::PhantomData, time::Duration};
 
 use futures::{

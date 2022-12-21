@@ -1,4 +1,5 @@
-/// Return value for streaming requests.
+//! Return value for streaming requests.
+
 use std::{
     pin::Pin,
     sync::{Arc, Mutex},

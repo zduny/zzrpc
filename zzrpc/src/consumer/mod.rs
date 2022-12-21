@@ -1,4 +1,5 @@
-/// Consumer related functionality.
+//! Consumer related functionality.
+
 mod value;
 use std::{
     marker::PhantomData,
@@ -127,6 +128,8 @@ impl<Request, Output, Error> Clone for Aborter<Request, Output, Error> {
 }
 
 /// Trait implemented by consumers.
+/// 
+/// It is used to create consumers.
 ///
 /// You should never have to implement it manually - use macros.
 pub trait Consume<Consumer, Error> {

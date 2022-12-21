@@ -1,4 +1,5 @@
-/// Return value for value requests.
+//! Return value for value requests.
+
 use std::{
     pin::Pin,
     sync::{Arc, Mutex},
