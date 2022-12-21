@@ -63,6 +63,7 @@ If you followed **Step 0** then add `common` to your client/server crate depende
 common = { path = "../common" }
 zzrpc = "0.1.1"
 mezzenger = "0.1.2"
+kodec = { version = "0.1.0", features = ["binary"] }
 serde = { version = "1.0.150", features = ["derive"] }
 tokio = { version = "1.23.0", features = ["full"] }
 tokio-stream = "0.1.11" # optional but useful when creating stream responses
