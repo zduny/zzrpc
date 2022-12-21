@@ -76,7 +76,7 @@ tokio-stream = "0.1.11" # optional but useful when creating stream responses
 
 ## Limitations
 
-Have in mind following limitations of `zzrpc`:
+Have in mind following limitations of `zzrpc`'s `#[api]` macro:
 - generic traits are not supported,
 - generic methods are not supported,
 - only one api is allowed per module 
