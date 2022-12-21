@@ -74,7 +74,7 @@ tokio = { version = "1.23.0", features = ["full"] }
 tokio-stream = "0.1.11" # optional but useful when creating stream responses
 ```
 
-# limitations
+## Limitations
 
 Have in mind following limitations of `zzrpc`:
 - generic traits are not supported,
