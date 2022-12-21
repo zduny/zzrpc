@@ -33,8 +33,8 @@ zzrpc = "0.1.1"
 ```
 
 For your server/clients you'll also need [`mezzenger`](https://crates.io/crates/mezzenger), 
-some [`kodec`](https://crates.io/crates/kodec) and on native server/client 
-[`tokio`](https://crates.io/crates/tokio).
+some [`kodec`](https://crates.io/crates/kodec), [`futures`](https://crates.io/crates/futures) 
+and on native server/client [`tokio`](https://crates.io/crates/tokio).
 
 Most likely (if you want to use complex types - your own defined structs and enums - as arguments 
 and/or return values) you'll also need [`serde`](https://crates.io/crates/serde) 
@@ -48,6 +48,7 @@ and/or return values) you'll also need [`serde`](https://crates.io/crates/serde)
 zzrpc = "0.1.1"
 mezzenger = "0.1.2"
 kodec = { version = "0.1.0", features = ["binary"] }
+futures = "0.3.25"
 serde = { version = "1.0.150", features = ["derive"] } # optional
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses 
@@ -64,6 +65,7 @@ common = { path = "../common" }
 zzrpc = "0.1.1"
 mezzenger = "0.1.2"
 kodec = { version = "0.1.0", features = ["binary"] }
+futures = "0.3.25"
 serde = { version = "1.0.150", features = ["derive"] } # optional
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses
