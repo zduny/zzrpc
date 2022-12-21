@@ -74,6 +74,22 @@ tokio = { version = "1.23.0", features = ["full"] }
 tokio-stream = "0.1.11" # optional but useful when creating stream responses
 ```
 
+## Step 2 - api definition
+
+## Step 3 - producing
+
+### Step 3a - server
+
+### Step 3b - producer
+
+### Step 3c - serving
+
+## Step 4 - consuming
+
+### Step 4a - client
+
+### Step 4b - consumer 
+
 ## Limitations
 
 Have in mind following limitations of `zzrpc`'s `#[api]` macro:
