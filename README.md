@@ -38,7 +38,7 @@ some [kodec](https://crates.io/crates/kodec) and on native server/client
 
 Most likely (if you want to use complex types - your own defined structs and enums - as arguments 
 and/or return values) you'll also need [`serde`](https://crates.io/crates/serde) 
-(to make them serializable with `Serialize`, `Deserialize` derive macros):
+(to make them serializable with `Serialize`, `Deserialize` derive macros).
 
 ```toml
 # ...
@@ -64,8 +64,8 @@ common = { path = "../common" }
 zzrpc = "0.1.1"
 mezzenger = "0.1.2"
 kodec = { version = "0.1.0", features = ["binary"] }
-serde = { version = "1.0.150", features = ["derive"] }
-tokio = { version = "1.23.0", features = ["full"] }
+serde = { version = "1.0.150", features = ["derive"] } # optional
+tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses
 ```
 
