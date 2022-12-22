@@ -165,9 +165,9 @@ async fn main() {
 
 Now it's a good time to implement a producer for your api:
 
-```
-use common::api::{impl_produce, Request, Response}; // or simply: use common::api::*;
+```rust
 use zzrpc::Produce;
+use common::api::{impl_produce, Request, Response}; // or simply: use common::api::*;
 
 #[derive(Debug, Produce)]
 struct Producer {
