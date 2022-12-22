@@ -59,13 +59,13 @@ If you followed **Step 0** then add `common` to your client/server crate depende
 [dependencies]
 # ...
 common = { path = "../common" }
-zzrpc = "0.1.1"
 mezzenger = "0.1.2"
+serde = { version = "1.0.150", features = ["derive"] } 
+zzrpc = "0.1.1"
 kodec = { version = "0.1.0", features = ["binary"] }
 futures = "0.3.25"
-serde = { version = "1.0.150", features = ["derive"] } # optional
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
-tokio-stream = "0.1.11" # optional but useful when creating stream responses
+tokio-stream = "0.1.11" # optional but useful when creating stream responses 
 ```
 
 ## Step 2 - api definition
