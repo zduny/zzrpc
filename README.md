@@ -34,7 +34,11 @@ serde = { version = "1.0.150", features = ["derive"] }
 zzrpc = "0.1.1"
 ```
 
-For your server/clients you'll also need some [`kodec`](https://crates.io/crates/kodec), [`futures`](https://crates.io/crates/futures) and on native server/client [`tokio`](https://crates.io/crates/tokio):
+For your server/clients you'll also need some [`kodec`](https://crates.io/crates/kodec), 
+some `mezzenger` transport implementation 
+(here: [mezzenger-tcp](https://crates.io/crates/mezzenger-tcp)), 
+[`futures`](https://crates.io/crates/futures) and on native server/client 
+[`tokio`](https://crates.io/crates/tokio):
 
 
 ```toml
@@ -46,6 +50,7 @@ mezzenger = "0.1.2"
 serde = { version = "1.0.150", features = ["derive"] } 
 zzrpc = "0.1.1"
 kodec = { version = "0.1.0", features = ["binary"] }
+mezzenger-tcp = "0.1.1"
 futures = "0.3.25"
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses 
@@ -63,6 +68,7 @@ mezzenger = "0.1.2"
 serde = { version = "1.0.150", features = ["derive"] } 
 zzrpc = "0.1.1"
 kodec = { version = "0.1.0", features = ["binary"] }
+mezzenger-tcp = "0.1.1"
 futures = "0.3.25"
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses 
@@ -91,7 +97,7 @@ pub trait Api {
     async fn message(&self, message: String);
 
     /// Stream of messages.
-    async fn messages(&self, interval: Duration) -> impl Stream<Item = String>;
+    async fn messages(&self) -> impl Stream<Item = String>;
 }
 ```
 
@@ -114,14 +120,14 @@ Also we'll create common state shared state by our producers.
 
 ```rust
 use std::sync::Arc;
-use futures::{pin_mut, FutureExt};
-use kodec::binary::Codec;
-use mezzenger_tcp::Transport;
 use tokio::{
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     select, spawn,
     sync::RwLock,
 };
+use futures::pin_mut;
+use kodec::binary::Codec;
+use mezzenger_tcp::Transport;
 
 #[derive(Debug)]
 struct State {
@@ -133,14 +139,14 @@ async fn main() {
     let state = Arc::new(RwLock::new(State {}));
 
     let listener = TcpListener::bind("127.0.0.1").await
-        .except("failed to bind tcp listener to specified address");
-    let break_signal = tokio::signal::ctrl_c().fuse();
+        .expect("failed to bind tcp listener to specified address");
+    let break_signal = tokio::signal::ctrl_c();
     pin_mut!(break_signal);
 
     loop {
         select! {
             listener_result = listener.accept() => {
-                let (stream, _address) = listener_result.except("failed to connect client");
+                let (stream, _address) = listener_result.expect("failed to connect client");
                 let state = state.clone();
                 spawn(async move {
                     // ... to do in next steps
