@@ -125,7 +125,7 @@ use tokio::{
     select, spawn,
     sync::RwLock,
 };
-use futures::pin_mut;
+use futures::{pin_mut, Stream};
 use kodec::binary::Codec;
 use mezzenger_tcp::Transport;
 
@@ -166,9 +166,44 @@ async fn main() {
 Now it's a good time to implement a producer for your api:
 
 ```
+use common::api::{impl_produce, Request, Response}; // or simply: use common::api::*;
+use zzrpc::Produce;
+
 #[derive(Debug, Produce)]
 struct Producer {
     state: Arc<RwLock<State>>,
+}
+
+// Note we're not implementing any trait here - zzrpc is designed like this
+// on purpose to avoid dealing with current Rust's async trait troubles.
+//
+// Instead simply copy your method signatures from the api's trait, add method 
+// bodies and implement them - `Produce` derive macro will do the rest for you.
+impl Producer {
+    /// Print "Hello World!" message on the server.
+    async fn hello_world(&self) {
+        println!("Hello World!");
+    }
+
+    /// Add two integers together and return result.
+    async fn add_numbers(&self, a: i32, b: i32) -> i32 {
+        a + b
+    }
+
+    /// Concatenate two strings and return resulting string.
+    async fn concatenate_strings(&self, a: String, b: String) -> String {
+        format!("{a}{b}")
+    }
+
+    /// Send (string) message to server.
+    async fn message(&self, message: String) {
+
+    }
+
+    /// Stream of messages.
+    async fn messages(&self) -> impl Stream<Item = String> {
+        
+    }
 }
 ```
 
