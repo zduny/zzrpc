@@ -22,34 +22,31 @@ cargo new --lib common
 
 ## Step 1 - dependencies
 
-Add [`zzrpc`](https://crates.io/crates/zzrpc) to `Cargo.toml`:
+Add [`mezzenger`](https://crates.io/crates/mezzenger), [`serde`](https://crates.io/crates/serde) with `derive` feature enabled and finally [`zzrpc`](https://crates.io/crates/zzrpc) to `Cargo.toml`:
 
 ```toml
 # ...
 
 [dependencies]
 # ...
+mezzenger = "0.1.2"
+serde = { version = "1.0.150", features = ["derive"] } 
 zzrpc = "0.1.1"
 ```
 
-For your server/clients you'll also need [`mezzenger`](https://crates.io/crates/mezzenger), 
-some [`kodec`](https://crates.io/crates/kodec), [`futures`](https://crates.io/crates/futures) 
-and on native server/client [`tokio`](https://crates.io/crates/tokio).
+For your server/clients you'll also need some [`kodec`](https://crates.io/crates/kodec), [`futures`](https://crates.io/crates/futures) and on native server/client [`tokio`](https://crates.io/crates/tokio):
 
-Most likely (if you want to use complex types - your own defined structs and enums - as arguments 
-and/or return values) you'll also need [`serde`](https://crates.io/crates/serde) 
-(to make them serializable with `Serialize`, `Deserialize` derive macros).
 
 ```toml
 # ...
 
 [dependencies]
 # ...
-zzrpc = "0.1.1"
 mezzenger = "0.1.2"
+serde = { version = "1.0.150", features = ["derive"] } 
+zzrpc = "0.1.1"
 kodec = { version = "0.1.0", features = ["binary"] }
 futures = "0.3.25"
-serde = { version = "1.0.150", features = ["derive"] } # optional
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
 tokio-stream = "0.1.11" # optional but useful when creating stream responses 
 ```
@@ -91,7 +88,7 @@ pub trait Api {
     async fn concatenate_strings(&self, a: String, b: String) -> String;
 
     /// Send (string) message to server.
-    async fn message($self, message: String);
+    async fn message(&self, message: String);
 
     /// Stream of messages.
     async fn messages(&self, interval: Duration) -> impl Stream<Item = String>;
