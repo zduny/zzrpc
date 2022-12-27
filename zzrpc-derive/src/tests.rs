@@ -42,7 +42,7 @@ fn api() -> proc_macro2::TokenStream {
 #[test]
 fn test_request() {
     let expected = quote! {
-        #[derive(Debug, zzrpc::serde::Serialize, zzrpc::serde::Deserialize)]
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
         pub enum Request {
             HelloWorld {},
             AddNumbers { a: i32, b: i32 },
@@ -64,14 +64,15 @@ fn test_request() {
 #[test]
 fn test_response() {
     let expected = quote! {
-        #[derive(Debug, zzrpc::serde::Serialize, zzrpc::serde::Deserialize)]
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
         pub enum Response {
             HelloWorld(()),
             AddNumbers(i32),
             ConcatenateStrings(String),
-            StreamNaturalNumbers(Option<usize>),
-            StreamTime(Option<NaiveTime>),
+            StreamNaturalNumbers(zzrpc::producer::StreamResponse<usize>),
+            StreamTime(zzrpc::producer::StreamResponse<NaiveTime>),
         }
+
     };
 
     let item = syn::parse2::<ItemTrait>(api()).unwrap();
@@ -140,8 +141,10 @@ fn test_consumer_senders() {
 #[test]
 fn test_consumer_state() {
     let expected = quote! {
+
         #[derive(Debug)]
         struct ConsumerState<Error> {
+            pending: usize,
             hello_world__requests: std::collections::HashMap<
                 usize,
                 zzrpc::futures::channel::oneshot::Sender<zzrpc::consumer::Result<(), Error>>,
@@ -165,14 +168,28 @@ fn test_consumer_state() {
             >,
             stream_natural_numbers__requests: std::collections::HashMap<
                 usize,
-                zzrpc::futures::channel::mpsc::UnboundedSender<usize>,
+                (
+                    Option<
+                        zzrpc::futures::channel::oneshot::Sender<
+                            zzrpc::consumer::Result<(), Error>,
+                        >,
+                    >,
+                    zzrpc::futures::channel::mpsc::UnboundedSender<usize>,
+                ),
             >,
             stream_natural_numbers__receiver: zzrpc::futures::channel::mpsc::UnboundedReceiver<
                 (zzrpc::consumer::Message<Request>, zzrpc::consumer::ResultSender<usize, Error>),
             >,
             stream_time__requests: std::collections::HashMap<
                 usize,
-                zzrpc::futures::channel::mpsc::UnboundedSender<NaiveTime>,
+                (
+                    Option<
+                        zzrpc::futures::channel::oneshot::Sender<
+                            zzrpc::consumer::Result<(), Error>,
+                        >,
+                    >,
+                    zzrpc::futures::channel::mpsc::UnboundedSender<NaiveTime>,
+                ),
             >,
             stream_time__receiver: zzrpc::futures::channel::mpsc::UnboundedReceiver<
                 (
@@ -222,6 +239,7 @@ fn test_consumer_state() {
                     stream_time__sender: std::sync::Arc::new(stream_time__sender),
                 };
                 let state = ConsumerState {
+                    pending: 0,
                     hello_world__requests: std::collections::HashMap::new(),
                     hello_world__receiver,
                     add_numbers__requests: std::collections::HashMap::new(),
@@ -245,11 +263,13 @@ fn test_consumer_state() {
                             Response::HelloWorld(result) => {
                                 if let Some(sender) = self.hello_world__requests.remove(&id) {
                                     let _ = sender.send(Ok(result));
+                                    self.pending -= 1;
                                 }
                             }
                             Response::AddNumbers(result) => {
                                 if let Some(sender) = self.add_numbers__requests.remove(&id) {
                                     let _ = sender.send(Ok(result));
+                                    self.pending -= 1;
                                 }
                             }
                             Response::ConcatenateStrings(result) => {
@@ -257,27 +277,55 @@ fn test_consumer_state() {
                                     = self.concatenate_strings__requests.remove(&id)
                                 {
                                     let _ = sender.send(Ok(result));
+                                    self.pending -= 1;
                                 }
                             }
                             Response::StreamNaturalNumbers(result) => {
-                                if let Some(result) = result {
-                                    if let Some(sender)
-                                        = self.stream_natural_numbers__requests.get_mut(&id)
-                                    {
-                                        let _ = sender.unbounded_send(result);
+                                match result {
+                                    zzrpc::producer::StreamResponse::Open => {
+                                        if let Some((sender, _))
+                                            = self.stream_natural_numbers__requests.get_mut(&id)
+                                        {
+                                            if let Some(sender) = sender.take() {
+                                                let _ = sender.send(Ok(()));
+                                                self.pending -= 1;
+                                            }
+                                        }
                                     }
-                                } else {
-                                    self.stream_natural_numbers__requests.remove(&id);
+                                    zzrpc::producer::StreamResponse::Item(item) => {
+                                        if let Some((_, sender))
+                                            = self.stream_natural_numbers__requests.get_mut(&id)
+                                        {
+                                            let _ = sender.unbounded_send(item);
+                                        }
+                                    }
+                                    zzrpc::producer::StreamResponse::Closed => {
+                                        self.stream_natural_numbers__requests.remove(&id);
+                                    }
                                 }
                             }
                             Response::StreamTime(result) => {
-                                if let Some(result) = result {
-                                    if let Some(sender) = self.stream_time__requests.get_mut(&id)
-                                    {
-                                        let _ = sender.unbounded_send(result);
+                                match result {
+                                    zzrpc::producer::StreamResponse::Open => {
+                                        if let Some((sender, _))
+                                            = self.stream_time__requests.get_mut(&id)
+                                        {
+                                            if let Some(sender) = sender.take() {
+                                                let _ = sender.send(Ok(()));
+                                                self.pending -= 1;
+                                            }
+                                        }
                                     }
-                                } else {
-                                    self.stream_time__requests.remove(&id);
+                                    zzrpc::producer::StreamResponse::Item(item) => {
+                                        if let Some((_, sender))
+                                            = self.stream_time__requests.get_mut(&id)
+                                        {
+                                            let _ = sender.unbounded_send(item);
+                                        }
+                                    }
+                                    zzrpc::producer::StreamResponse::Closed => {
+                                        self.stream_time__requests.remove(&id);
+                                    }
                                 }
                             }
                         }
@@ -286,6 +334,9 @@ fn test_consumer_state() {
                     zzrpc::producer::Message::Aborted => Some(zzrpc::ShutdownType::Aborted),
                     zzrpc::producer::Message::Shutdown => Some(zzrpc::ShutdownType::Shutdown),
                 }
+            }
+            fn idle(&self) -> bool {
+                self.pending == 0
             }
             fn shutdown(&mut self, shutdown_type: zzrpc::ShutdownType) {
                 for (_id, sender) in self.hello_world__requests.drain() {
@@ -296,6 +347,16 @@ fn test_consumer_state() {
                 }
                 for (_id, sender) in self.concatenate_strings__requests.drain() {
                     let _ = sender.send(Err(shutdown_type.into()));
+                }
+                for (_id, (mut sender, _)) in self.stream_natural_numbers__requests.drain() {
+                    if let Some(sender) = sender.take() {
+                        let _ = sender.send(Err(shutdown_type.into()));
+                    }
+                }
+                for (_id, (mut sender, _)) in self.stream_time__requests.drain() {
+                    if let Some(sender) = sender.take() {
+                        let _ = sender.send(Err(shutdown_type.into()));
+                    }
                 }
             }
         }

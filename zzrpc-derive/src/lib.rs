@@ -3,6 +3,7 @@ use proc_macro::{self, TokenStream};
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma, Token};
+use uuid::Uuid;
 
 #[cfg(test)]
 mod tests;
@@ -38,7 +39,7 @@ fn request(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     });
 
     let output = quote! {
-        #[derive(Debug, zzrpc::serde::Serialize, zzrpc::serde::Deserialize)]
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
         pub enum Request {
            #(#items)*
         }
@@ -84,7 +85,7 @@ fn response(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
             let ident = format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
             let return_type = extract_return_type(&method.sig.output);
             let item = if is_stream(&method.sig.output) {
-                quote! { #ident(Option<#return_type>), }
+                quote! { #ident(zzrpc::producer::StreamResponse<#return_type>), }
             } else {
                 quote! { #ident(#return_type), }
             };
@@ -94,7 +95,7 @@ fn response(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     });
 
     let output = quote! {
-        #[derive(Debug, zzrpc::serde::Serialize, zzrpc::serde::Deserialize)]
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
         pub enum Response {
             #(#items)*
         }
@@ -177,12 +178,23 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
         handlers.push(if is_stream(&method.sig.output) {
             quote! {
                 Response::#ident(result) => {
-                    if let Some(result) = result {
-                        if let Some(sender) = self.#ident_requests.get_mut(&id) {
-                            let _ = sender.unbounded_send(result);
-                        }
-                    } else {
-                        self.#ident_requests.remove(&id);
+                    match result {
+                        zzrpc::producer::StreamResponse::Open => {
+                            if let Some((sender, _)) = self.#ident_requests.get_mut(&id) {
+                                if let Some(sender) = sender.take() {
+                                    let _ = sender.send(Ok(()));
+                                    self.pending -= 1;
+                                }
+                            }
+                        },
+                        zzrpc::producer::StreamResponse::Item(item) => {
+                            if let Some((_, sender)) = self.#ident_requests.get_mut(&id) {
+                                let _ = sender.unbounded_send(item);
+                            }
+                        },
+                        zzrpc::producer::StreamResponse::Closed => {
+                            self.#ident_requests.remove(&id);
+                        },
                     }
                 }
             }
@@ -191,12 +203,21 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                 Response::#ident(result) => {
                     if let Some(sender) = self.#ident_requests.remove(&id) {
                         let _ = sender.send(Ok(result));
+                        self.pending -= 1;
                     }
                 }
             }
         });
 
-        if !is_stream(&method.sig.output) {
+        if is_stream(&method.sig.output) {
+            drainers.push(quote! {
+                for (_id, (mut sender, _)) in self.#ident_requests.drain() {
+                    if let Some(sender) = sender.take() {
+                        let _ = sender.send(Err(shutdown_type.into()));
+                    }
+                }
+            });
+        } else {
             drainers.push(quote! {
                 for (_id, sender) in self.#ident_requests.drain() {
                     let _ = sender.send(Err(shutdown_type.into()));
@@ -215,6 +236,7 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                 };
 
                 let state = ConsumerState {
+                    pending: 0,
                     #(#items)*
                 };
 
@@ -237,6 +259,10 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                 }
             }
 
+            fn idle(&self) -> bool {
+                self.pending == 0
+            }
+
             fn shutdown(&mut self, shutdown_type: zzrpc::ShutdownType) {
                 #(#drainers)*
             }
@@ -254,7 +280,8 @@ fn consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
             let sender = if is_stream(&method.sig.output) {
                 quote! {
-                    zzrpc::futures::channel::mpsc::UnboundedSender<#return_type>
+                    (Option<zzrpc::futures::channel::oneshot::Sender<zzrpc::consumer::Result<(), Error>>>,
+                    zzrpc::futures::channel::mpsc::UnboundedSender<#return_type>)
                 }
             } else {
                 quote! {
@@ -279,6 +306,7 @@ fn consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let output = quote! {
         #[derive(Debug)]
         struct ConsumerState<Error> {
+            pending: usize,
             #(#items)*
         }
 
@@ -309,12 +337,16 @@ fn impl_consume(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                         if let Err(error) = result {
                             let _ = result_sender.send(Err(error));
                         } else {
-                            let _ = result_sender.send(Ok(()));
-                            state.#ident_requests.insert(id, values_sender);
+                            state.#ident_requests.insert(id, (Some(result_sender), values_sender));
+                            state.pending += 1;
                         }
                     },
                     zzrpc::consumer::ResultSender::Abort => {
-                        state.#ident_requests.remove(&id);
+                        if let Some((sender, _)) = state.#ident_requests.remove(&id) {
+                            if sender.is_some() {
+                                state.pending -= 1;
+                            }
+                        }
                     },
                     _ => unreachable!("value sender got when stream sender expected"),
                 }
@@ -325,18 +357,25 @@ fn impl_consume(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                             let _ = sender.send(Err(error));
                         } else {
                             state.#ident_requests.insert(id, sender);
+                            state.pending += 1;
                         }
                     },
                     zzrpc::consumer::ResultSender::Abort => {
-                        state.#ident_requests.remove(&id);
+                        if state.#ident_requests.remove(&id).is_some() {
+                            state.pending -= 1;
+                        }
                     },
                     _ => unreachable!("stream sender got when value sender expected"),
                 }
             };
 
             let item = quote! {
-                #ident_option = state.#ident_receiver.next() => {
+                #ident_option = zzrpc::futures::StreamExt::next(&mut state.#ident_receiver) => {
                     if let Some((message, result_sender)) = #ident_option {
+                        if timeout.is_some() {
+                            timeout_future.reset();
+                        }
+
                         let id = message.id;
                         let result = sender.send(message).await;
                         let result = result.map_err(|error| {
@@ -373,19 +412,19 @@ fn impl_consume(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
         zzrpc::spawn(async move {
             let (mut sender, receiver) = transport.split();
-            let receiver = receiver.fuse();
+            let receiver = zzrpc::futures::StreamExt::fuse(receiver);
 
             let timeout_future = if let Some(duration) = timeout {
                 zzrpc::Timeout::new(duration)
             } else {
                 zzrpc::Timeout::never()
             };
-            let shutdown = shutdown.fuse();
+            let shutdown = zzrpc::futures::FutureExt::fuse(shutdown);
             zzrpc::futures::pin_mut!(receiver, timeout_future, shutdown);
 
             loop {
                 zzrpc::futures::select! {
-                    receive_option = receiver.next() => {
+                    receive_option = zzrpc::futures::StreamExt::next(&mut receiver) => {
                         if let Some(receive_result) = receive_option {
                             if timeout.is_some() {
                                 timeout_future.reset();
@@ -412,7 +451,7 @@ fn impl_consume(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                     },
                     #(#items)*
                     _ = &mut timeout_future => {
-                        if timeout.is_some() {
+                        if timeout.is_some() && !state.idle() {
                             state.shutdown(zzrpc::ShutdownType::Timeout);
                             break;
                         }
@@ -621,14 +660,27 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                         let reply_sender = reply_sender.clone();
                         let remove_aborter_sender = remove_aborter_sender.clone();
                         spawn(async move {
-                            let mut stream = me.#ident(#arguments).await.fuse();
+                            let mut stream = zzrpc::futures::StreamExt::fuse(me.#ident(#arguments).await);
+
+                            let response = zzrpc::producer::StreamResponse::Open;
+                            let response = Response::#ident_request(response);
+                            let message = zzrpc::producer::Message::Response { id, response };
+                            let _ = reply_sender.unbounded_send(message);
+                            
                             loop {
                                 select! {
-                                    result = stream.next() => {
-                                        let response = Response::#ident_request(result);
-                                        let message = zzrpc::producer::Message::Response { id, response };
-                                        let _ = reply_sender.unbounded_send(message);
-                                        if result.is_none() {
+                                    result = zzrpc::futures::StreamExt::next(&mut stream) => {
+                                        if let Some(result) = result {
+                                            let response = zzrpc::producer::StreamResponse::Item(result);
+                                            let response = Response::#ident_request(response);
+                                            let message = zzrpc::producer::Message::Response { id, response };
+                                            let _ = reply_sender.unbounded_send(message);
+                                        } else {
+                                            let response = zzrpc::producer::StreamResponse::Closed;
+                                            let response = Response::#ident_request(response);
+                                            let message = zzrpc::producer::Message::Response { id, response };
+                                            let _ = reply_sender.unbounded_send(message);
+
                                             let _ = remove_aborter_sender.unbounded_send(id);
                                             break;
                                         }
@@ -648,7 +700,7 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                         let reply_sender = reply_sender.clone();
                         let remove_aborter_sender = remove_aborter_sender.clone();
                         spawn(async move {
-                            let task = me.#ident(#arguments).fuse();
+                            let task = zzrpc::futures::FutureExt::fuse(me.#ident(#arguments));
                             pin_mut!(task);
                             select! {
                                 result = task => {
@@ -669,9 +721,12 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
         _ => None,
     });
 
+    let uuid = Uuid::new_v4();
+    let ident = format_ident!("__impl_produce_{}", uuid.simple().to_string());
+
     let output = quote! {
-        #[allow(unused_macros)]
-        macro_rules! impl_produce {
+        #[macro_export]
+        macro_rules! #ident {
             ($self:ident, $transport:ident, $configuration:ident) => {
                 zzrpc::spawn(async move {
                     use std::sync::Arc;
@@ -681,25 +736,25 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                             mpsc::unbounded,
                             oneshot,
                         },
-                        pin_mut, select, FutureExt, SinkExt, StreamExt,
+                        pin_mut, select, SinkExt, StreamExt,
                     };
                     use zzrpc::{ShutdownType, Timeout};
-        
+
                     use zzrpc::spawn;
-        
+
                     let me = Arc::new($self);
-        
+
                     let (mut sender, receiver) = $transport.split();
-                    let mut receiver = receiver.fuse();
-        
+                    let mut receiver = zzrpc::futures::StreamExt::fuse(receiver);
+
                     let (reply_sender, mut reply_receiver) = unbounded::<zzrpc::producer::Message<Response>>();
-        
+
                     let mut aborters: HashMap<usize, oneshot::Sender<()>> = HashMap::new();
                     let (remove_aborter_sender, mut remove_aborter_receiver) = unbounded::<usize>();
-        
+
                     let (stop_sender, stop_receiver) = oneshot::channel::<ShutdownType>();
                     let mut stop_sender = Some(stop_sender);
-        
+
                     let zzrpc::producer::Configuration {
                         shutdown,
                         mut send_error_callback,
@@ -707,9 +762,9 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                         timeout,
                         ..
                     } = $configuration;
-        
+
                     spawn(async move {
-                        while let Some(message) = reply_receiver.next().await {
+                        while let Some(message) = zzrpc::futures::StreamExt::next(&mut reply_receiver).await {
                             match message {
                                 zzrpc::producer::Message::Response { id, .. } => {
                                     let result = sender.send(message).await;
@@ -729,7 +784,7 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                             }
                         }
                     });
-        
+
                     let handle_message = |aborters: &mut HashMap<usize, oneshot::Sender<()>>, message: zzrpc::consumer::Message<Request>| {
                         let zzrpc::consumer::Message { id, payload } = message;
                         match payload {
@@ -747,7 +802,7 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                             }
                         }
                     };
-        
+
                     let mut return_value = ShutdownType::Closed;
                     let mut handle_shutdown = |shutdown_type: ShutdownType| {
                         return_value = shutdown_type;
@@ -760,21 +815,21 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                         };
                         let _ = reply_sender.unbounded_send(message);
                     };
-        
+
                     let timeout_future = if let Some(duration) = timeout {
                         Timeout::new(duration)
                     } else {
                         Timeout::never()
                     };
-                    let shutdown = shutdown.fuse();
+                    let shutdown = zzrpc::futures::FutureExt::fuse(shutdown);
                     pin_mut!(shutdown, timeout_future, stop_receiver);
                     loop {
                         select! {
-                            receive_option = receiver.next() => {
+                            receive_option = zzrpc::futures::StreamExt::next(&mut receiver) => {
                                 if timeout.is_some() {
                                     timeout_future.reset();
                                 }
-        
+
                                 if let Some(receive_result) = receive_option {
                                     match receive_result {
                                         Ok(message) => handle_message(&mut aborters, message),
@@ -790,7 +845,7 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                                     break;
                                 }
                             },
-                            id_option = remove_aborter_receiver.next() => {
+                            id_option = zzrpc::futures::StreamExt::next(&mut remove_aborter_receiver) => {
                                 if let Some(id) = id_option {
                                     aborters.remove(&id);
                                 }
@@ -817,15 +872,17 @@ fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
                             },
                         }
                     }
-        
+
                     for (_, aborter) in aborters.drain() {
                         let _ = aborter.send(());
                     }
-        
+
                     return_value
                 })
             }
         }
+
+        pub use #ident as impl_produce;
     };
     output
 }
