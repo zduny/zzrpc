@@ -31,8 +31,11 @@ pub async fn run(address: &str) -> Result<()> {
     let mut addition = consumer.add_numbers(2, 3);
     let aborter = addition.aborter();
     spawn(async move {
+        sleep(Duration::from_secs(1)).await;
         println!("2 + 3 = {:?}", addition.await);
     });
+    aborter.abort();
+
     println!("5 + 6 = {}", consumer.add_numbers(5, 6).await.unwrap());
     println!(
         "'abc' + 'df' = {}",
@@ -42,14 +45,6 @@ pub async fn run(address: &str) -> Result<()> {
             .unwrap()
     );
     println!("8 + 1 = {}", consumer.add_numbers(8, 1).await.unwrap());
-    println!(
-        "'a' + 'df' = {}",
-        consumer
-            .concatenate_strings("a".to_string(), "df".to_string())
-            .await
-            .unwrap()
-    );
-    aborter.abort();
 
     let mut time_stream = consumer.stream_time(Duration::from_secs(1)).await.unwrap();
     let aborter = time_stream.aborter();
@@ -69,7 +64,6 @@ pub async fn run(address: &str) -> Result<()> {
     }
 
     println!("2 + 3 = {}", consumer.add_numbers(2, 3).await.unwrap());
-    sleep(Duration::from_secs(5)).await;
 
     Ok(())
 }
