@@ -32,8 +32,16 @@ Following improvements are planned for development:
   
     // ...
   
-    async fn do_some_task(&self, cancellation_token: CancellationToken, some_argument: i32) -> u64;
+    async fn do_some_task(
+        &self, 
+        cancellation_token: CancellationToken, 
+        some_argument: i32) -> u64;
     ```
+    Of course consumer method would not have `cancellation_token` argument:
+    ```rust
+    fn do_some_task(&self, some_argument: i32) -> zzrpc::ValueRequest<u64, Request, Self::Error>;
+    ```
+    
 
 2. An option to generate bindings so consumer methods could be called directly from JavaScript using [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen).
 
