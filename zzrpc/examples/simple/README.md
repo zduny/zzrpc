@@ -1,6 +1,6 @@
 # example
 
-Simple server and consumer.
+Simple producer and consumer.
 
 ## usage
 
