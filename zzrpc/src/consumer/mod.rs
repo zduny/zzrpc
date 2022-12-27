@@ -128,7 +128,7 @@ impl<Request, Output, Error> Clone for Aborter<Request, Output, Error> {
 }
 
 /// Trait implemented by consumers.
-/// 
+///
 /// It is used to create consumers.
 ///
 /// You should never have to implement it manually - use macros.
@@ -189,7 +189,7 @@ pub trait Consume<Consumer, Error> {
     fn consume<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
-    ) -> Self::Consumer
+    ) -> Consumer
     where
         Transport: mezzenger::Transport<producer::Message<Self::Response>, Message<Self::Request>, Error>
             + mezzenger::Reliable
@@ -210,7 +210,7 @@ pub trait Consume<Consumer, Error> {
     fn consume_unreliable<Transport, Shutdown, ReceiveErrorCallback>(
         transport: Transport,
         configuration: Configuration<Shutdown, Error, ReceiveErrorCallback>,
-    ) -> Self::Consumer
+    ) -> Consumer
     where
         Transport: mezzenger::Transport<producer::Message<Self::Response>, Message<Self::Request>, Error>
             + mezzenger::Reliable

@@ -94,6 +94,17 @@ pub enum Message<Response> {
     Shutdown,
 }
 
+/// Stream response wrapper.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StreamResponse<T> {
+    /// Stream open.
+    Open,
+    /// Next stream item.
+    Item(T),
+    /// Stream closed (has no more items).
+    Closed,
+}
+
 /// Trait implemented by producers.
 ///
 /// You should never have to implement it manually - use derive macro.

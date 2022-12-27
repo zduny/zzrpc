@@ -236,7 +236,7 @@ impl<T, Request, Error> futures::Stream for Stream<T, Request, Error> {
 
 impl<T, Request, Error> FusedStream for Stream<T, Request, Error> {
     fn is_terminated(&self) -> bool {
-        self.receiver.is_some()
+        self.receiver.is_none()
     }
 }
 
