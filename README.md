@@ -8,7 +8,7 @@ https://crates.io/crates/zzrpc
 
 # usage
 
-See [zzrpc-tutorial](https://github.com/zduny/zzrpc-tutorial)
+See [zzrpc-tutorial](https://github.com/zduny/zzrpc-tutorial).
 
 # targeting WebAssembly
 
