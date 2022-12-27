@@ -53,7 +53,7 @@ kodec = { version = "0.1.0", features = ["binary"] }
 mezzenger-tcp = "0.1.1"
 futures = "0.3.25"
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
-tokio-stream = "0.1.11" # optional but useful when creating stream responses 
+tokio-stream = { version = "0.1.11", features = ["sync"] } # optional but useful when creating stream responses 
 ```
 
 If you followed **Step 0** then add `common` to your client/server crate dependencies:
@@ -71,7 +71,7 @@ kodec = { version = "0.1.0", features = ["binary"] }
 mezzenger-tcp = "0.1.1"
 futures = "0.3.25"
 tokio = { version = "1.23.0", features = ["full"] } # only when targeting native platforms
-tokio-stream = "0.1.11" # optional but useful when creating stream responses 
+tokio-stream = { version = "0.1.11", features = ["sync"] } # optional but useful when creating stream responses 
 ```
 
 ## Step 2 - api definition
@@ -166,8 +166,12 @@ async fn main() {
 Now it's a good time to implement a producer for your api:
 
 ```rust
-use zzrpc::Produce;
 use common::api::{impl_produce, Request, Response}; // or simply: use common::api::*;
+use tokio::sync::broadcast;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
+use zzrpc::Produce;
+
+// ...
 
 #[derive(Debug, Produce)]
 struct Producer {
@@ -197,14 +201,30 @@ impl Producer {
 
     /// Send (string) message to server.
     async fn message(&self, message: String) {
-
+        let _ = self.state.read().await.sender.send(message);
     }
 
     /// Stream of messages.
     async fn messages(&self) -> impl Stream<Item = String> {
-        
+        BroadcastStream::new(self.state.read().await.sender.subscribe()).filter_map(Result::ok)
     }
 }
+```
+
+Remember to update `State` struct:
+
+```rust
+// ...
+#[derive(Debug)]
+struct State {
+    sender: broadcast::Sender<String>,
+}
+
+#[tokio::main]
+async fn main() {
+    let (sender, _) = broadcast::channel(16);
+    let state = Arc::new(RwLock::new(State { sender }));
+// ...
 ```
 
 ### Step 3c - serving
