@@ -253,6 +253,29 @@ Completed tutorial example is available [here](https://github.com/zduny/zzrpc/tr
 
 See [rust-webapp-template-api](https://github.com/zduny/rust-webapp-template-api).
 
+# further work
+
+Following improvements are planned for development:
+
+1. Support for two more method types:
+
+  - method with default return without acknowledgment - its future will return as soon as request message is sent to producer without waiting for `()`    response from the producer:
+    ```rust
+    #[no-ack]
+    async fn do_something_i_dont_care_if_it_completes(&self, some_argument: i32);
+    ```
+ 
+  - method with [`CancellationToken`](https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html) argument - so producer implementors can receive request abort messages (currently "aborting" a request only means that producer will ignore task's result and not send it to the consumer - it doesn't mean the task itself is meaningfully affected):
+    ```rust
+    use tokio_util::sync::CancellationToken;
+  
+    // ...
+  
+    async fn do_some_task(&self, cancellation_token: CancellationToken, some_argument: i32) -> u64;
+    ```
+
+2. An option to generate bindings that can be called from JavaScript using [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen).
+
 # see also
 
 [mezzenger](https://github.com/zduny/mezzenger)
