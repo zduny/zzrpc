@@ -6,7 +6,7 @@ https://crates.io/crates/zzrpc
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/O5O31JYZ4)
 
-# usage
+## usage
 
 See [zzrpc-tutorial](https://github.com/zduny/zzrpc-tutorial).
 
@@ -14,7 +14,7 @@ See [zzrpc-tutorial](https://github.com/zduny/zzrpc-tutorial).
 
 See [rust-webapp-template-api](https://github.com/zduny/rust-webapp-template-api).
 
-# further work
+## further work
 
 Following improvements are planned for development:
 
@@ -45,7 +45,7 @@ Following improvements are planned for development:
 
 2. An option to generate bindings so consumer methods could be called directly from JavaScript using [wasm-bindgen](https://github.com/rustwasm/wasm-bindgen).
 
-# see also
+## see also
 
 [mezzenger](https://github.com/zduny/mezzenger)
 
