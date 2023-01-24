@@ -10,7 +10,7 @@ https://crates.io/crates/zzrpc
 
 See [zzrpc-tutorial](https://github.com/zduny/zzrpc-tutorial).
 
-# targeting WebAssembly
+## targeting WebAssembly
 
 See [rust-webapp-template-api](https://github.com/zduny/rust-webapp-template-api).
 
