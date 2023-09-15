@@ -2,7 +2,7 @@
 
 [![Test Status](https://github.com/zduny/zzrpc/actions/workflows/rust.yml/badge.svg)](https://github.com/zduny/zzrpc/actions)
 [![Crate](https://img.shields.io/crates/v/zzrpc.svg)](https://crates.io/crates/zzrpc)
-[![API](https://docs.rs/zzprc/badge.svg)](https://docs.rs/zzrpc)
+[![API](https://docs.rs/zzrpc/badge.svg)](https://docs.rs/zzrpc)
 
 [RPC](https://en.wikipedia.org/wiki/Remote_procedure_call) over [mezzenger](https://github.com/zduny/mezzenger) transports.
 
