@@ -27,7 +27,7 @@ fn skip_self(
 
 fn request(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident = format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
             let args = skip_self(&method.sig.inputs);
             let item = quote! {
@@ -81,7 +81,7 @@ fn is_stream(return_type: &syn::ReturnType) -> bool {
 
 fn response(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident = format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
             let return_type = extract_return_type(&method.sig.output);
             let item = if is_stream(&method.sig.output) {
@@ -105,7 +105,7 @@ fn response(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
 fn consumer_senders(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident = format_ident!(
                 "{}__sender",
                 method.sig.ident.to_string().to_case(Case::Snake)
@@ -141,7 +141,7 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let mut drainers = vec![];
 
     for method in item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => Some(method),
+        syn::TraitItem::Fn(method) => Some(method),
         _ => None,
     }) {
         let ident = format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
@@ -273,7 +273,7 @@ fn impl_consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
 fn consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident_requests = format_ident!("{}__requests", method.sig.ident.to_string().to_case(Case::Snake));
             let ident_receiver = format_ident!("{}__receiver", method.sig.ident.to_string().to_case(Case::Snake));
             let return_type = extract_return_type(&method.sig.output);
@@ -317,7 +317,7 @@ fn consumer_state(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
 fn impl_consume(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident_option = format_ident!(
                 "{}__option",
                 method.sig.ident.to_string().to_case(Case::Snake)
@@ -541,7 +541,7 @@ fn impl_api(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let ident = &item.ident;
 
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident_request =
                 format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
             let ident_sender = format_ident!(
@@ -646,7 +646,7 @@ fn consumer(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
 
 fn impl_produce(item: &syn::ItemTrait) -> proc_macro2::TokenStream {
     let items = item.items.iter().filter_map(|item| match item {
-        syn::TraitItem::Method(method) => {
+        syn::TraitItem::Fn(method) => {
             let ident = method.sig.ident.clone();
             let ident_request =
                 format_ident!("{}", method.sig.ident.to_string().to_case(Case::Pascal));
@@ -896,7 +896,7 @@ fn extract_stream_item_type(impl_trait: &syn::TypeImplTrait) -> syn::Type {
                     if let syn::PathArguments::AngleBracketed(arguments) = &stream.arguments {
                         if arguments.args.len() == 1 {
                             let argument = &arguments.args[0];
-                            if let syn::GenericArgument::Binding(binding) = argument {
+                            if let syn::GenericArgument::AssocType(binding) = argument {
                                 if binding.ident == "Item" {
                                     return binding.ty.clone();
                                 }
@@ -931,19 +931,19 @@ fn modify_trait(mut item: syn::ItemTrait) -> syn::ItemTrait {
         .unwrap(),
     );
 
+    let must_use = format_ident!("must_use");
     let must_use = syn::Attribute {
         pound_token: Token!(#)(Span::call_site()),
         style: syn::AttrStyle::Outer,
         bracket_token: syn::token::Bracket(Span::call_site()),
-        path: syn::Path {
+        meta: syn::Meta::Path(syn::Path {
             leading_colon: None,
-            segments: Punctuated::new(),
-        },
-        tokens: quote!(must_use),
+            segments: syn::punctuated::Punctuated::from_iter([syn::PathSegment::from(must_use)]),
+        }),
     };
 
     for method in item.items.iter_mut().filter_map(|item| {
-        if let syn::TraitItem::Method(func) = item {
+        if let syn::TraitItem::Fn(func) = item {
             Some(func)
         } else {
             None
